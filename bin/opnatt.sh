@@ -2,8 +2,8 @@
 
 # OPNsense has bash, so let's use it
 
-source opnatt.conf
-source opnatt-functions.sh
+source /conf/opnatt/bin/opnatt.conf
+source /conf/opnatt/bin/opnatt-functions.sh
 
 trap 'shutdown' SIGINT SIGQUIT SIGABRT SIGTERM
 
