@@ -1,110 +1,96 @@
 # About
 
-This repository includes my notes on enabling a true bridge mode setup with AT&T U-Verse and OPNsense. This method utilizes [netgraph](https://www.freebsd.org/cgi/man.cgi?netgraph(4)) which is a graph based kernel networking subsystem of FreeBSD. This low-level solution was required to account for the unique issues surrounding bridging 802.1X traffic and tagging a VLAN with an id of 0. I've tested and confirmed this setup works with AT&T U-Verse Internet on the ARRIS NVG589, NVG599 and BGW210-700 residential gateways (probably others too). For Pace 5268AC see special details below.
+This repository includes notes on using your own OPNsense hardware with AT&T Fiber. This method utilizes [`netgraph`](https://www.freebsd.org/cgi/man.cgi?netgraph(4)), a graph based kernel networking subsystem of FreeBSD, and `wpa_supplicant`. This "supplicant" method eliminates the need for the AT&T Residential Gateway entirely.
 
-There are a few other methods to accomplish true bridge mode, so be sure to see what easiest for you. True Bridge Mode is also possible in a Linux via ebtables or using hardware with a VLAN swap trick. For me, I was not using a Linux-based router and the VLAN swap did not seem to work for me.
+# Background
 
-While many AT&T residential gateways offer something called _IP Passthrough_, it does not provide the same advantages of a true bridge mode. For example, the NAT table is still managed by the gateway, which is limited to a measly 8192 sessions (although it becomes unstable at even 60% capacity).
+While many AT&T Residential Gateways offer something called _IP Passthrough_, it does not provide the same advantages of a true bridge mode. For example, the NAT table is still managed by the gateway, which is limited to a measly 8192 sessions (although it becomes unstable at even 60% capacity)<sup>[citation needed]</sup>.
 
-The netgraph method will allow you to fully utilize your own router and fully bypass your residential gateway. It survives reboots, re-authentications, IPv6, and new DHCP leases.
+The supplicant method will allow you to fully utilize your own router and fully bypass your Residential Gateway. It survives reboots, re-authentications, IPv6, and new DHCP leases.
 
-# How it Works
+## How it Works
 
 Before continuing to the setup, it's important to understand how this method works. This will make configuration and troubleshooting much easier.
 
-## Standard Procedure
+### Standard Procedure
 
 First, let's talk about what happens in the standard setup (without any bypass). At a high level, the following process happens when the gateway boots up:
 
-1. All traffic on the ONT is protected with [802.1/X](https://en.wikipedia.org/wiki/IEEE_802.1X). So in order to talk to anything, the Router Gateway must first perform the [authentication procedure](https://en.wikipedia.org/wiki/IEEE_802.1X#Typical_authentication_progression). This process uses a unique certificate that is hardcoded on your residential gateway.
+1. All traffic on the ONT is protected with [802.1/X](https://en.wikipedia.org/wiki/IEEE_802.1X). So in order to talk to anything, the Router Gateway must first perform the [authentication procedure](https://en.wikipedia.org/wiki/IEEE_802.1X#Typical_authentication_progression). This process uses a unique certificate that is hardcoded on your Residential Gateway.
 2. Once the authentication completes, you'll be able to properly "talk" to the outside. However, all of your traffic will need to be tagged with VLAN ID 0 (a.k.a. VLAN Priority Tagging<sup>[[1]](https://wikipedia.org/wiki/IEEE_802.1Q#Frame_format)[[2]](https://www.cisco.com/c/en/us/td/docs/switches/connectedgrid/cg-switch-sw-master/software/configuration/guide/vlan0/b_vlan_0.html)</sup>) before the IP gateway will respond.  
-3. Once traffic is tagged with VLAN0, your residential gateway needs to request a public IPv4 address via DHCP. The MAC address in the DHCP request needs to match that of the MAC address that's assigned to your AT&T account. Other than that, there's nothing special about the DCHPv4 handshake.
+3. Once traffic is tagged with VLAN ID 0, your Residential Gateway needs to request a public IPv4 address via DHCP. The MAC address in the DHCP request needs to match that of the MAC address that's assigned to your AT&T account<sup>[citation needed]</sup>. Other than that, there's nothing special about the DCHPv4 handshake.
 4. After the DHCP lease is issued, the WAN setup is complete. Your LAN traffic is then NAT'd and routed to the outside.
 
-## Bypass Procedure
+### Bypass Procedure
 
-To bypass the gateway using OPNsense, we can emulate the standard procedure. If we connect our Residential Gateway and ONT to our OPNsense box, we can bridge the 802.1/X authentication sequence, tag our WAN traffic as VLAN0, and request a public IPv4 via DHCP using a spoofed MAC address.
+To bypass the Residential Gateway using OPNsense, we can emulate the standard procedure entirely within OPNsense. However, there is a complication; tagging traffic with VLAN ID 0 is not supported through the standard interfaces.
 
-Unfortunately, there are some challenges with emulating this process. First, it's against RFC to bridge 802.1/X traffic and it is not supported. Second, tagging traffic as VLAN0 is not supported through the standard interfaces.
+This is where `netgraph` comes in. `netgraph` allows you to break some rules and build the proper plumbing to make this work. In our case, it simply allows us to tag traffic with VLAN ID 0.
 
-This is where netgraph comes in. Netgraph allows you to break some rules and build the proper plumbing to make this work. So, our cabling looks like this:
-
-```
-Residential Gateway
-[ONT Port]
-  |
-  |
-[nic0] OPNsense [nic1]
-                 |
-                 |
-               [ONT]
-              Outside
-```
-
-With netgraph, our procedure looks like this (at a high level):
-
-1. The Residential Gateway initiates a 802.1/X EAPOL-START.
-1. The packet then is bridged through netgraph to the ONT interface.
-1. If the packet matches an 802.1/X type (which is does), it is passed to the ONT interface. If it does not, the packet is discarded. This prevents our Residential Gateway from initiating DHCP. We want OPNsense to handle that.
-1. The ONT should then see and respond to the EAPOL-START, which is passed back through our netgraph back to the residential gateway. At this point, the 802.1/X authentication should be complete.
-1. netgraph has also created an interface for us called `ngeth0`. This interface is connected to `ng_vlan` which is configured to tag all traffic as VLAN0 before sending it on to the ONT interface.
-1. OPNsense can then be configured to use `ngeth0` as the WAN interface.
-1. Next, we spoof the MAC address of the residential gateway and request a DHCP lease on `ngeth0`. The packets get tagged as VLAN0 and exit to the ONT.
-1. Now the DHCP handshake should complete and we should be on our way!
-
-Hopefully, that now gives you an idea of what we are trying to accomplish. See the comments and commands `bin/pfatt.sh` for details about the netgraph setup.
-
-But enough talk. Now for the fun part!
+Hopefully, that gives you an idea of what we are trying to accomplish. See the comments and commands in [`bin/opnatt.sh`](bin/opnatt.sh) for details about the netgraph setup.
 
 # Setup
 
 ## Prerequisites
 
-* At least __three__ physical network interfaces on your OPNsense server
-* The MAC address of your Residential Gateway
-* Local or console access to OPNsense
+* Certificates extracted from your Arris NVG589, NVG599, BGW210-700, or Pace 5268AC.
+* The MAC address tied to your certificates.
+* Local or console access to OPNsense.
 
-If you only have two NICs, you can buy this cheap USB 100Mbps NIC [from Amazon](https://www.amazon.com/gp/product/B00007IFED) as your third. It has the Asix AX88772 chipset, which is supported in FreeBSD with the [axe](https://www.freebsd.org/cgi/man.cgi?query=axe&sektion=4) driver. I've confirmed it works in my setup. The driver was already loaded and I didn't have to install or configure anything to get it working. Also, don't worry about the poor performance of USB or 100Mbps NICs. This third NIC will only send/recieve a few packets periodicaly to authenticate your Router Gateway. The rest of your traffic will utilize your other (and much faster) NICs.
+There are some excellent resources on rooting and extracting certificates from various gateways:
+* [BGW210-700: Rooting an AT&T Fiber Gateway](https://www.dupuis.xyz/bgw210-700-root-and-certs) by [Andrew Dupuis](https://www.dupuis.xyz) [[Wayback Machine]](https://web.archive.org/https://www.dupuis.xyz/bgw210-700-root-and-certs) [[archive.ph]](https://archive.ph/wiT7T)
+* [bypassrg/att](https://github.com/bypassrg/att)
+* [EAP-TLS credentials decoder for Nokia, Humax, Motorola and Arris gateways. Ultimate fiber router bypass!](https://www.devicelocksmith.com/2018/12/eap-tls-credentials-decoder-for-nvg-and.html) by [Sergey AKA devicelocksmith](https://www.devicelocksmith.com) [[Wayback Machine]](https://web.archive.org/https://www.devicelocksmith.com/2018/12/eap-tls-credentials-decoder-for-nvg-and.html) [[archive.ph]](https://archive.ph/SNALp)
+* [SharknAT&To](www.nomotion.net/blog/sharknatto)<sup>[broken]</sup> by jhutchins/NoMotion [[Web Archive]](https://web.archive.org/http://www.nomotion.net/blog/sharknatto) [[archive.ph]](https://archive.ph/JS6rA)
+* [Rooting The NVG510 from the WebUI](http://earlz.net/view/2012/06/07/0026/rooting-the-nvg510-from-the-webui) by Ashley Houston AKA ash2q [[Web Archive]](https://web.archive.org/http://earlz.net/view/2012/06/07/0026/rooting-the-nvg510-from-the-webui) [[archive.ph]](https://archive.ph/wtRql)
 
 ## Install
 
-1. Edit the following configuration variables in `bin/pfatt.sh` as noted below. `$RG_ETHER_ADDR` should match the MAC address of your Residential Gateway. AT&T will only grant a DHCP lease to the MAC they assigned your device. In my environment, it's:
-    ```shell
-    ONT_IF='xx0' # NIC -> ONT / Outside
-    RG_IF='xx1'  # NIC -> Residential Gateway's ONT port
-    RG_ETHER_ADDR='xx:xx:xx:xx:xx:xx' # MAC address of Residential Gateway
-    ```
+1. Download/clone this repo somewhere you can edit it.
 
-2. Copy `bin/opnatt.sh` to `/user/local/etc/rc.syshook.d/early/99-opnatt.sh` (or any directory):
-    ```
-    scp bin/pfatt.sh root@OPNsense:/user/local/etc/rc.syshook.d/early/99-opnatt.sh
-    ssh root@OPNsense chmod +x /user/local/etc/rc.syshook.d/early/99-opnatt.sh
-    ```
+2. Copy your certificates somewhere they can be accessed by the script, such as the `wpa` directory.
 
-    **NOTE:** If you have the 5268AC, you'll also need to install `pfatt-5268AC-startup.sh` and `pfatt-5268.sh`. The scripts monitor your connection and disable or enable the EAP bridging as needed. It's a hacky workaround, but it enables you to keep your 5268AC connected, avoid EAP-Logoffs and survive reboots. Consider changing the `PING_HOST` in `pfatt-5268AC.sh` to a reliable host. Then perform these additional steps to install:
-    ```
-    scp bin/pfatt-5268AC-startup.sh root@OPNsense:/usr/local/etc/rc.d/pfatt-5268AC-startup.sh
-    scp bin/pfatt-5268AC.sh root@OPNsense:/root/bin/
-    ssh root@OPNsense chmod +x /usr/local/etc/rc.d/pfatt-5268AC-startup.sh /root/bin/pfatt-5268AC.sh
-    ```
+3. Edit the configuration variables in `bin/opnatt.conf` to your setup.
+```shell
+# Interface Options
 
-3. The pfatt.sh script will start with the boot process due to it's placement in /user/local/etc/rc.syshook.d/early/.
+ONT_IF="xx0"
+EAP_IDENTITY="XX:XX:XX:XX:XX:XX"
+RG_ETHER="XX:XX:XX:XX:XX:XX"
 
-4. Connect cables:
-    - `$RG_IF` to Residential Gateway on the ONT port (not the LAN ports!)
-    - `$ONT_IF` to ONT (outside)
-    - `LAN NIC` to local switch (as normal)
+# wpa_supplicant Options
 
-5. Prepare for console access.
-6. Reboot.
-7. OPNsense will detect new interfaces on bootup. Follow the prompts on the console to configure `ngeth0` as your OPNsense WAN. Your LAN interface should not normally change. However, if you moved or re-purposed your LAN interface for this setup, you'll need to re-apply any existing configuration (like your VLANs) to your new LAN interface. OPNsense does not need to manage `$RG_IF` or `$ONT_IF`. I would advise not enabling those interfaces in OPNsense as it can cause problems with the netgraph.
-8. In the webConfigurator, configure the  WAN interface (`ngeth0`) to DHCP using the MAC address of your Residential Gateway.
+ca_cert="/conf/opnatt/wpa/ca.pem"
+client_cert="/conf/opnatt/wpa/client.pem"
+private_key="/conf/opnatt/wpa/private.pem"
+```
 
-If everything is setup correctly, netgraph should be bridging EAP traffic between the ONT and RG, tagging the WAN traffic with VLAN0, and your WAN interface configured with an IPv4 address via DHCP.
+4. Copy the repo to `/conf/opnatt`:
+```shell
+scp -r opnatt root@OPNsense:/conf/
+```
+
+5. At this point testing the script would be a good idea.
+```shell
+ssh root@OPNsense
+/conf/opnatt/bin/opnatt.sh
+```
+
+6. To start `opnatt` at boot:
+```shell
+ln /conf/opnatt/bin/opnatt.sh /usr/local/etc/rc.syshook.d/early/99-opnatt
+```
+
+7. Assign `ngeth0` as your WAN interface.
+
+8. Once again, it's recommended to reboot OPNsense to test that WAN comes up.
+
+9. Apply your configurations, firewall rules, etc. in OPNsense.
+   Do *not* add the underlying interface (`xx0`) to OPNsense.
 
 # IPv6 Setup
 
-Once your netgraph setup is in place and working, there aren't any netgraph changes required to the setup to get IPv6 working. These instructions can also be followed with a different bypass method other than the netgraph method. Big thanks to @pyrodex1980's [post](http://www.dslreports.com/forum/r32118263-) on DSLReports for sharing your notes.
+Big thanks to @pyrodex1980's [post](http://www.dslreports.com/forum/r32118263-) on DSLReports for notes on IPv6.
 
 **WAN Setup**
 
@@ -147,32 +133,22 @@ That's it! Now your clients should be receiving public IPv6 addresses via DHCP6.
 
 ## Logging
 
-Output from `pfatt.sh` and `pfatt-5268AC.sh` can be found in `/var/log/pfatt.log`.
+Output from `opnatt.sh` can be found in the OPNsense Web UI under System -> Log Files -> General.
 
-## tcpdump
+## `wpa_supplicant`
 
-Use tcpdump to watch the authentication, vlan and dhcp bypass process (see above). Run tcpdumps on the `$ONT_IF` interface and the `$RG_IF` interface:
+Connect to the `wpa_supplicant` daemon and view status:
+```shell
+wpa_cli status
+```
+
+## `tcpdump`
+
+Use tcpdump to watch authentication, VLAN and DHCP traffic.
 ```
 tcpdump -ei $ONT_IF
-tcpdump -ei $RG_IF
 ```
 
-Restart your Residential Gateway. From the `$RG_IF` interface, you should see some EAPOL starts like this:
-```
-MAC (oui Unknown) > MAC (oui Unknown), ethertype EAPOL (0x888e), length 60: POL start
-```
-
-If you don't see these, make sure you're connected to the ONT port.
-
-These packets come every so often. I think the RG does some backoff / delay if doesn't immediately auth correctly. You can always reboot your RG to initiate the authentication again.
-
-If your netgraph is setup correctly, the EAP start packet from the `$RG_IF` will be bridged onto your `$ONT_IF` interface. Then you should see some more EAP packets from the `$ONT_IF` interface and `$RG_IF` interface as they negotiate 802.1/X EAP authentication.
-
-Once that completes, watch `$ONT_IF` and `ngeth0` for DHCP traffic.
-```
-tcpdump -ei $ONT_IF port 67 or port 68
-tcpdump -ei ngeth0 port 67 or port 68
-```
 
 Verify you are seeing 802.1Q (tagged as vlan0) traffic on your `$ONT_IF ` interface and untagged traffic on `ngeth0`.
 
@@ -184,55 +160,71 @@ If you don't see traffic being bridged between `ngeth0` and `$ONT_IF`, then netg
 
 ## Promiscuous Mode
 
-`pfatt.sh` will put `$RG_IF` in promiscuous mode via `/sbin/ifconfig $RG_IF promisc`. Otherwise, the EAP packets would not bridge. I think this is necessary for everyone but I'm not sure. Turn it off if it's causing issues.
+`opnatt.sh` will put `$ONT_IF` in promiscuous mode via `/sbin/ifconfig $ONT_IF promisc`. It's unclear if this is required or not in supplicant mode.
 
-## netgraph
+## Kernel Modules
+
+Confirm the required kernel modules are loaded with `kldstat`. The following modules are required:
+
+- `netgraph`
+- `ng_ether`
+- `ng_eiface`
+- `ng_vlan`
+
+You can edit which kernel modules are loaded by opnatt.sh in [`opnatt.conf`](bin/opnatt.conf).
+
+## `netgraph`
 
 The netgraph system provides a uniform and modular system for the implementation of kernel objects which perform various networking functions. If you're unfamiliar with netgraph, this [tutorial](http://www.netbsd.org/gallery/presentations/ast/2012_AsiaBSDCon/Tutorial_NETGRAPH.pdf) is a great introduction.
 
 Your netgraph should look something like this:
 
-![netgraph](img/ngctl.png)
+![netgraph](img/ngctl.svg)
 
-In this setup, the `ue0` interface is my `$RG_IF` and the `bce0` interface is my `$ONT_IF`. You can generate your own graphviz via `ngctl dot`. Copy the output and paste it at [webgraphviz.com](http://www.webgraphviz.com/).
+In this setup, the `igb3` interface is my `$ONT_IF`.
+
+You can generate your own graphviz via `ngctl dot`. Copy the output and paste it at [webgraphviz.com](http://www.webgraphviz.com/) or render locally with `dot`.
 
 Try these commands to inspect whether netgraph is configured properly.
 
-1. Confirm kernel modules are loaded with `kldstat -v`. The following modules are required:
-    - netgraph
-    - ng_ether
-    - ng_eiface
-    - ng_one2many
-    - ng_vlan
-    - ng_etf
+1. Issue `ngctl list` to list netgraph nodes. Inspect `opnatt.sh` to verify the netgraph output matches the configuration in the script. It should look similar to this:
 
-2. Issue `ngctl list` to list netgraph nodes. Inspect `pfatt.sh` to verify the netgraph output matches the configuration in the script. It should look similar to this:
 ```
-$ ngctl list
-There are 9 total nodes:
-  Name: o2m             Type: one2many        ID: 000000a0   Num hooks: 3
-  Name: vlan0           Type: vlan            ID: 000000a3   Num hooks: 2
-  Name: ngeth0          Type: eiface          ID: 000000a6   Num hooks: 1
-  Name: <unnamed>       Type: socket          ID: 00000006   Num hooks: 0
-  Name: ngctl28740      Type: socket          ID: 000000ca   Num hooks: 0
-  Name: waneapfilter    Type: etf             ID: 000000aa   Num hooks: 2
-  Name: laneapfilter    Type: etf             ID: 000000ae   Num hooks: 3
-  Name: bce0            Type: ether           ID: 0000006e   Num hooks: 1
-  Name: ue0             Type: ether           ID: 00000016   Num hooks: 2
-```
-3. Inspect the various nodes and hooks. Example for `ue0`:
-```
-$ ngctl show ue0:
-  Name: ue0             Type: ether           ID: 00000016   Num hooks: 2
-  Local hook      Peer name       Peer type    Peer ID         Peer hook
-  ----------      ---------       ---------    -------         ---------
-  upper           laneapfilter    etf          000000ae        nomatch
-  lower           laneapfilter    etf          000000ae        downstream
+Name:	igb3		Type: ether	    ID: 00000004	Num hooks: 1
+Name:	vlan0		Type: vlan		ID: 0000000d	Num hooks: 2
+Name:	ngeth0	    Type: eiface	ID: 00000010	Num hooks: 1
 ```
 
-### Reset netgraph
+2. Inspect the various nodes and hooks:
 
-`pfatt.sh` expects a clean netgraph before it can be ran. To reset a broken netgraph state, try this:
+```
+Name:	igb3		Type: ether	    ID: 00000004	Num hooks: 1
+Local hook	Peer name	Peer type	Peer ID	    Peer hook
+----------	---------	---------	-------		---------
+lower		vlan0		vlan		0000000d	downstream
+```
+
+
+```
+Name:	vlan0		Type: vlan		ID: 0000000d	Num hooks: 2
+Local hook      Peer name   Peer type   Peer ID     Peer hook      
+----------      ---------   ---------   -------     ---------      
+vlan0           ngeth0      eiface      00000010    ether          
+downstream      igb3        ether       00000004    lower          
+
+```
+
+
+```
+Name:	ngeth0	    Type: eiface	ID: 00000010	Num hooks: 1
+Local hook	Peer name	Peer type	Peer ID	    Peer hook
+----------	---------	---------	-------		---------
+ether		vlan0   	vlan		0000000d	vlan0
+```
+
+## Reset `netgraph`
+
+`opnatt.sh` expects a clean netgraph before it can be ran. To reset a broken netgraph state, try this:
 
 ```shell
 /usr/sbin/ngctl shutdown waneapfilter:
@@ -244,21 +236,13 @@ $ ngctl show ue0:
 /usr/sbin/ngctl shutdown ngeth0:
 ```
 
-# Virtualization Notes
-
-This setup has been tested on physical servers and virtual machines. Virtualization adds another layer of complexity for this setup, and will take extra consideration.
-
-## QEMU / KVM / Proxmox
-
-Proxmox uses a bridged networking model, and thus utilizes Linux's native bridge capability. To use this netgraph method, you do a PCI passthrough for the `$RG_IF` and `$ONT_IF` NICs. The bypass procedure should then be the same.
-
-You can also solve the EAP/802.1X and VLAN0/802.1Q problem by setting the `group_fwd_mask` and creating a vlan0 interface to bridge to your VM. See *Other Methods* below.
-
-## ESXi
-
-I haven't tried to do this with ESXi. Feel free to submit a PR with notes on your experience. PCI passthrough is probably the best approach here though.
+This will remove netgraph nodes setup by other bypass modes e.g. netgraph bridge.
 
 # Other Methods
+
+## pfSense/pfatt (netgraph w/ bridge)
+
+https://github.com/MonkWho/pfatt
 
 ## Linux
 
@@ -278,6 +262,16 @@ I haven't tried this with native FreeBSD, but I imagine the process is ultimatel
 
 See [U-VERSE_TV.md](U-VERSE_TV.md)
 
+# Known Issues
+
+- [ACME client cron job causes loss of WAN connectivity](https://github.com/MonkWho/pfatt/issues/76)
+- Netflow may or may not work with `ngeth0`. Please submit feedback!
+- It's unclear wether `$RG_ADDR` is actually needed. Please submit feedback!
+- It's unclear wether promiscous mode is actually needed. Please submit feedback!
+- Use of `eval` should be removed in `opnatt.sh`.
+- An option to log to `/var/log/opnatt.log` in addition to syslog would be preferred.
+- XGS-PON rollout by AT&T will likely change things. It's been reported that this bypass no longer works in XGS-PON areas.
+
 # References
 
 - http://blog.0xpebbles.org/Bypassing-At-t-U-verse-hardware-NAT-table-limits
@@ -289,7 +283,7 @@ See [U-VERSE_TV.md](U-VERSE_TV.md)
 
 # Credits
 
-This took a lot of testing and a lot of hours to figure out. A unique solution was required for this to work in pfSense. If this helped you out, please buy us a coffee.
+This took a lot of testing and a lot of hours to figure out. If this helped you out, please buy us a coffee.
 
 - [rajl](https://forum.netgate.com/user/rajl) - for the netgraph idea - 1H8CaLNXembfzYGDNq1NykWU3gaKAjm8K5
 - [pyrodex](https://www.dslreports.com/profile/1717952) - for IPv6 - ?
