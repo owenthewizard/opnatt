@@ -114,36 +114,36 @@ Big thanks to @pyrodex1980's [post](http://www.dslreports.com/forum/r32118263-) 
 **WAN Setup**
 
 1. Go to _Interfaces > WAN_
-1. Enable **IPv6 Configuration Type** as _DHCP6_
-1. Scroll to _DCHP6 Client Configuration_
-1. Enable **Request only an IPv6 prefix**
-1. Enable **DHCPv6 Prefix Delegation size** as _60_
-1. Enable _Send IPv6 prefix hint_
-1. Enable _Do not wait for a RA_
-1. Save
+2. Enable **IPv6 Configuration Type** as _DHCP6_
+3. Scroll to _DCHP6 Client Configuration_
+4. Enable **Request only an IPv6 prefix**
+5. Enable **DHCPv6 Prefix Delegation size** as _60_
+6. Enable _Send IPv6 prefix hint_
+7. Enable _Do not wait for a RA_
+8. Save
 
 **LAN Setup**
 
 1. Go to _Interfaces > LAN_
-1. Change the **IPv6 Configuration Type** to _Track Interface_
-1. Under Track IPv6 Interface, assign **IPv6 Interface** to your WAN interface.
-1. Configure **IPv6 Prefix ID** to _0_.
-You *CAN* use IPv6 Prefix id 0, as OPNSense does *NOT* assign a routeable IPv6 address to ngeth0
-1. Save
+2. Change the **IPv6 Configuration Type** to _Track Interface_
+3. Under Track IPv6 Interface, assign **IPv6 Interface** to your WAN interface.
+4. Configure **IPv6 Prefix ID** to _0_.
+   You *CAN* use IPv6 Prefix id 0, as OPNSense does *NOT* assign a routeable IPv6 address to ngeth0
+5. Save
 
 If you have additional LAN interfaces repeat these steps for each interface except be sure to provide an **IPv6 Prefix ID** that is not _0_ and is unique among the interfaces you've configured so far.
 
 **DHCPv6 Server & RA**
 
 1. Go to _Services > DHCPv6 Server & RA_
-1. Enable DHCPv6 server on interface LAN
-1. Configure a range of ::0001 to ::ffff:ffff:ffff:fffe
-1. Leave **Prefix Delegation Range** _blank_.
-1. Configure **Prefix Delegation Size** to _64_
-1. Save
-1. Go to the _Router Advertisements_ tab
-1. Configure **Router mode** as _Stateless DHCP_
-1. Save
+2. Enable DHCPv6 server on interface LAN
+3. Configure a range of ::0001 to ::ffff:ffff:ffff:fffe
+4. Leave **Prefix Delegation Range** _blank_.
+5. Configure **Prefix Delegation Size** to _64_
+6. Save
+7. Go to the _Router Advertisements_ tab
+8. Configure **Router mode** as _Stateless DHCP_
+9. Save
 
 If you have additional LAN interfaces repeat these steps for each interface.
 
