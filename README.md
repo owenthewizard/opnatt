@@ -189,42 +189,38 @@ Try these commands to inspect whether netgraph is configured properly.
 
 1. Issue `ngctl list` to list netgraph nodes. Inspect `opnatt.sh` to verify the netgraph output matches the configuration in the script. It should look similar to this:
 
-```
-Name:	igb3		Type: ether	    ID: 00000004	Num hooks: 1
-Name:	vlan0		Type: vlan		ID: 0000000d	Num hooks: 2
-Name:	ngeth0	    Type: eiface	ID: 00000010	Num hooks: 1
-```
+|               |               |               |               |
+|---------------|---------------|---------------|---------------|
+| Name: igb3    | Type: ether   | ID: 00000004  | Num hooks: 1  |
+| Name: vlan0   | Type: vlan    | ID: 0000000d  | Num hooks: 2  |
+| Name: ngeth0  | Type: eiface  | ID: 00000010  | Num hooks: 1  |
 
 2. Inspect the various nodes and hooks:
 
-```
-Name:	igb3		Type: ether	    ID: 00000004	Num hooks: 1
-Local hook	Peer name	Peer type	Peer ID	    Peer hook
-----------	---------	---------	-------		---------
-lower		vlan0		vlan		0000000d	downstream
-```
+- `igb3`:
+
+| Local hook    | Peer name | Peer type | Peer ID   | Peer hook     |
+|---------------|-----------|-----------|-----------|---------------|
+| lower         | vlan0     | vlan      | 0000000d  | downstream    |
+
+- `vlan0`:
+
+| Local hook    | Peer name | Peer type | Peer ID   | Peer hook |
+|---------------|-----------|-----------|-----------|-----------|
+| vlan0         | ngeth0    | eiface    | 00000010  | ether     |
+| downstream    | igb3      | ether     | 00000004  | lower     |
 
 
-```
-Name:	vlan0		Type: vlan		ID: 0000000d	Num hooks: 2
-Local hook      Peer name   Peer type   Peer ID     Peer hook      
-----------      ---------   ---------   -------     ---------      
-vlan0           ngeth0      eiface      00000010    ether          
-downstream      igb3        ether       00000004    lower          
+- `ngeth0`:
 
-```
-
-
-```
-Name:	ngeth0	    Type: eiface	ID: 00000010	Num hooks: 1
-Local hook	Peer name	Peer type	Peer ID	    Peer hook
-----------	---------	---------	-------		---------
-ether		vlan0   	vlan		0000000d	vlan0
-```
+| Local hook    | Peer name	| Peer type	| Peer ID   | Peer hook |
+|---------------|-----------|-----------|-----------|-----------|
+| ether         | vlan0   	| vlan		| 0000000d  | vlan0
 
 ## Reset `netgraph`
 
-`opnatt.sh` expects a clean netgraph before it can be ran. To reset a broken netgraph state, try this:
+`opnatt.sh` expects a clean netgraph before it can be ran.
+To reset a broken netgraph state, try this:
 
 ```shell
 /usr/sbin/ngctl shutdown waneapfilter:
@@ -237,6 +233,7 @@ ether		vlan0   	vlan		0000000d	vlan0
 ```
 
 This will remove netgraph nodes setup by other bypass modes e.g. netgraph bridge.
+Make sure to define `$ON_IF` and `$RG_IF` before running!
 
 # Other Methods
 
