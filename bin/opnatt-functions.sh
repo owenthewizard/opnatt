@@ -23,3 +23,11 @@ function shutdown() {
     ng_clean
     exit 0
 }
+
+function wpa_status() {
+    wpa_cli status | grep -F suppPortStatus | cut -d= -f2
+}
+
+function ip_status() {
+    ifconfig ngeth0 | grep "inet " | cut -d' ' -f2
+}

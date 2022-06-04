@@ -39,8 +39,6 @@ log "creating vlan node and ngeth0 interface..."
 
 log "starting wpa_supplicant..."
 
-WPA_DAEMON_CMD="/usr/sbin/wpa_supplicant -Dwired -ingeth0 -B -C/var/run/wpa_supplicant -c/conf/opnatt/wpa/wpa_supplicant.conf"
-
 # kill any existing wpa_supplicant process
 wpa_pid=$(pgrep -f "wpa_supplicant.\*ngeth0")
 if [[ -u "$wpa_pid" ]]; then 
@@ -49,7 +47,7 @@ if [[ -u "$wpa_pid" ]]; then
 fi
 
 # start wpa_supplicant daemon
-RES=$(eval ${WPA_DAEMON_CMD})
+/usr/bin/wpa_supplicant -Dwired -ingeth0 -B -C/var/run/wpa_supplicant -c/conf/opnatt/wpa/wpa_supplicant.conf
 wpa_pid=$(pgrep -f "wpa_supplicant.\*ngeth0")
 log "wpa_supplicant running on PID ${wpa_pid}..."
 
@@ -61,20 +59,16 @@ wpa_cli set_network 0 client_cert \""$client_cert"\"
 wpa_cli set_network 0 private_key \""$private_key"\"
 
 # wait until wpa_cli has authenticated.
-WPA_STATUS_CMD="wpa_cli status | grep 'suppPortStatus' | cut -d= -f2"
-IP_STATUS_CMD="ifconfig ngeth0 | grep 'inet\ ' | cut -d' ' -f2"
-
 log "waiting EAP for authorization..."
 
 for i in {1..5}; do
-    WPA_STATUS=$(eval ${WPA_STATUS_CMD})
-    if [[ "$WPA_STATUS" = "Authorized" ]]; then
+    if [[ "$(wpa_status)" = "Authorized" ]]; then
         log "EAP authorization completed..."
-        IP_STATUS=$(eval ${IP_STATUS_CMD})
+        IP_STATUS="$(ip_status)"
         if [[ -z "$IP_STATUS" ]] || [[ "$IP_STATUS" = "0.0.0.0" ]]; then
             log "no IP address assigned, force restarting DHCP..."
             /etc/rc.d/dhclient forcerestart ngeth0
-            IP_STATUS=$(eval ${IP_STATUS_CMD})
+            IP_STATUS="$(ip_status)"
         fi
         log "IP address is ${IP_STATUS}..."
         break
