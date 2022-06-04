@@ -1,3 +1,10 @@
+# Disclaimer
+
+Bypassing the AT&T Residential Gateway does **NOT** allow for theft-of-service.
+
+Service authentication is **NOT** performed by the AT&T Residential Gateway (likely the ONT instead).
+This repository does **NOT** contain **ANY** code or any other content that is proprietary, patended, copyrighted, or otherwise belonging to AT&T, Arris, Motorola, or other companies related to the AT&T Residential Gateway.
+
 # About
 
 This repository includes notes on using your own OPNsense hardware with AT&T Fiber.
