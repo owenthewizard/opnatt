@@ -309,15 +309,17 @@ See [U-VERSE_TV.md](U-VERSE_TV.md)
 
 - [ACME client cron job causes loss of WAN connectivity](https://github.com/MonkWho/pfatt/issues/76)
 - Netflow may or may not work with `ngeth0`.
-Please submit feedback!
+  Please submit feedback!
 - It's unclear wether `$RG_ADDR` is actually needed.
-Please submit feedback!
+  Please submit feedback!
 - It's unclear wether promiscous mode is actually needed.
-Please submit feedback!
+  Please submit feedback!
 - Use of `eval` should be removed in `opnatt.sh`.
 - An option to log to `/var/log/opnatt.log` in addition to syslog would be preferred.
 - XGS-PON rollout by AT&T will likely change things.
-It's been reported that this bypass no longer works in XGS-PON areas.
+  It's been reported that this bypass no longer works in XGS-PON areas.
+- Occasional disconnects.
+  Unclear why this happens, but copying the script to `/usr/local/etc/rc.syshook.d/monitor` will re-connect automatically.
 
 # References
 
