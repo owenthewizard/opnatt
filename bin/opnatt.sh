@@ -47,7 +47,7 @@ if [[ -u "$wpa_pid" ]]; then
 fi
 
 # start wpa_supplicant daemon
-/usr/bin/wpa_supplicant -Dwired -ingeth0 -B -C/var/run/wpa_supplicant -c/conf/opnatt/wpa/wpa_supplicant.conf
+/usr/sbin/wpa_supplicant -Dwired -ingeth0 -B -C/var/run/wpa_supplicant -c/conf/opnatt/wpa/wpa_supplicant.conf
 wpa_pid=$(pgrep -f "wpa_supplicant.\*ngeth0")
 log "wpa_supplicant running on PID ${wpa_pid}..."
 
