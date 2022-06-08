@@ -40,15 +40,15 @@ log "creating vlan node and ngeth0 interface..."
 log "starting wpa_supplicant..."
 
 # kill any existing wpa_supplicant process
-wpa_pid=$(pgrep -f "wpa_supplicant.\*ngeth0")
-if [[ -u "$wpa_pid" ]]; then 
+wpa_pid=$(pgrep -f "wpa_supplicant."\*"ngeth0")
+if [[ -n "$wpa_pid" ]]; then
     log "terminating existing wpa_supplicant on PID ${wpa_pid}..."
     kill "$wpa_pid"
 fi
 
 # start wpa_supplicant daemon
 /usr/sbin/wpa_supplicant -Dwired -ingeth0 -B -C/var/run/wpa_supplicant -c/conf/opnatt/wpa/wpa_supplicant.conf
-wpa_pid=$(pgrep -f "wpa_supplicant.\*ngeth0")
+wpa_pid=$(pgrep -f "wpa_supplicant."\*"ngeth0")
 log "wpa_supplicant running on PID ${wpa_pid}..."
 
 # Set WPA configuration parameters.
