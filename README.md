@@ -74,6 +74,8 @@ There are some excellent resources on rooting and extracting certificates from v
 2. Copy your certificates somewhere they can be accessed by the script, such as the `wpa` directory.
 
 3. Edit the configuration variables in `bin/opnatt.conf` to your setup.
+
+(Note: If using `onpatt-bridge.sh` edit config in that file and move to `/usr/local/etc/rc.syshook.d/early/`, rename to `99-opnatt`, reboot and skip to step 7)
 ```shell
 # Interface Options
 
