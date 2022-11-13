@@ -273,7 +273,7 @@ Make sure to define `$ON_IF` and `$RG_IF` before running!
 
 # Other Methods
 
-## pfSense/pfatt (netgraph w/ bridge)
+## pfatt (netgraph w/ bridge)
 
 https://github.com/MonkWho/pfatt
 
@@ -314,7 +314,6 @@ See [U-VERSE_TV.md](U-VERSE_TV.md)
   Please submit feedback!
 - It's unclear wether promiscous mode is actually needed.
   Please submit feedback!
-- Use of `eval` should be removed in `opnatt.sh`.
 - An option to log to `/var/log/opnatt.log` in addition to syslog would be preferred.
 - XGS-PON rollout by AT&T will likely change things.
   It's been reported that this bypass no longer works in XGS-PON areas.
