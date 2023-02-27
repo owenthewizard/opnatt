@@ -104,7 +104,7 @@ ssh root@OPNsense
 6. To start `opnatt` at boot:
 
 ```shell
-ln /conf/opnatt/bin/opnatt.sh /usr/local/etc/rc.syshook.d/early/99-opnatt
+ln /conf/opnatt/bin/opnatt.sh /usr/local/etc/rc.syshook.d/start/94-opnatt
 ```
 
 7. Assign `ngeth0` as your WAN interface.
