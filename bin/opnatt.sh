@@ -58,6 +58,8 @@ wpa_cli set_network 0 ca_cert \""$ca_cert"\"
 wpa_cli set_network 0 client_cert \""$client_cert"\"
 wpa_cli set_network 0 private_key \""$private_key"\"
 
+wpa_cli logon
+
 # wait until wpa_cli has authenticated.
 log "waiting EAP for authorization..."
 
