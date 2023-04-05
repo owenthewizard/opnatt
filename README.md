@@ -11,6 +11,40 @@ This repository includes notes on using your own OPNsense hardware with AT&T Fib
 This method utilizes [`netgraph`](https://www.freebsd.org/cgi/man.cgi?netgraph(4)), a graph based kernel networking subsystem of FreeBSD, and `wpa_supplicant`.
 This "supplicant" method eliminates the need for the AT&T Residential Gateway entirely.
 
+# Compatibility
+
+## OPNsense
+
+Tested working on:
+- [x] OPNsense 23.1.5_4-amd64
+  - FreeBSD 13.1-RELEASE-p7
+  - OpenSSL 1.1.1t 7 Feb 2023
+  - wpa_supplicant 2.10_6
+  - Intel(R) PRO/1000 ET 82576 (igb)
+    - EEPROM V1.5-1 eTrack 0x0001616a
+  
+- [x] OPNsense 23.1.1_2-amd64
+
+_Should_ work on:
+- OPNsense 23.1_6
+- OPNsense 22.7.11_1
+- OPNsense 22.7.11
+- OPNsense 22.7.3_2
+- OPNsense 22.7.2
+- OPNsense 22.7.1
+- OPNsense 22.7_4
+- OPNsense 22.1.10_4	
+- OPNsense 22.1.8_1
+- OPNsense 21.7.1
+
+## pfSense
+
+Tested on OPNsense but probably works on pfSense as well.
+
+## GPON & XGS-PON
+
+This type of bypass does not work in XGS-PON areas.
+
 # Background
 
 While many AT&T Residential Gateways offer something called _IP Passthrough_, it does not provide the same advantages of a true bridge mode.
