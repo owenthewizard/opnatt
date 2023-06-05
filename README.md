@@ -71,9 +71,30 @@ At a high level, the following process happens when the gateway boots up:
 To bypass the Residential Gateway using OPNsense, we can emulate the standard procedure entirely within OPNsense.
 However, there is a complication; tagging traffic with VLAN ID 0 is not supported through the standard interfaces.
 
+#### `netgraph`
+
 This is where `netgraph` comes in.
 `netgraph` allows you to break some rules and build the proper plumbing to make this work.
 In our case, it simply allows us to tag traffic with VLAN ID 0.
+
+#### Smart/Managed Switch
+
+Alternatively, you can setup a smart/managed switch between the ONT and OPNsense.
+Assign two ports to an untagged VLAN, choose an ID other than the default. I chose 100.
+You can use the rest of the switch ports as usual. I chose to use them as untagged VLAN 1.
+
+D-Link:
+
+![image](https://github.com/owenthewizard/opnatt/assets/7953513/7d136e70-5c1c-4ff9-be7a-f884f3464c85)
+![image](https://github.com/owenthewizard/opnatt/assets/7953513/b5faf9db-0b7e-4a8a-9d86-1872ab84e0e5)
+![image](https://github.com/owenthewizard/opnatt/assets/7953513/adf16cb6-275f-4e6a-8b96-41194f0b986e)
+
+TP-Link:
+
+![image](https://github.com/owenthewizard/opnatt/assets/7953513/7195c3af-9962-40d8-9ee1-5fc37ef52a95)
+![image](https://github.com/owenthewizard/opnatt/assets/7953513/38f2903a-7367-4dde-817f-7f025e8e9a67)
+
+Now traffic from the ONT should be stripped of its VLAN tag before being sent to OPNsense.
 
 Hopefully, that gives you an idea of what we are trying to accomplish.
 See the comments and commands in [`bin/opnatt.sh`](bin/opnatt.sh) for details about the netgraph setup.
