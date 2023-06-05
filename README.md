@@ -2,55 +2,47 @@
 
 Bypassing the AT&T Residential Gateway does **NOT** allow for theft-of-service.
 
-Service authentication is **NOT** performed by the AT&T Residential Gateway (likely the ONT instead).
+Service authentication is **NOT** performed by the AT&T Residential Gateway (likely the ONT instead)<sup>[citation needed]</sup>.
 This repository does **NOT** contain **ANY** code or any other content that is proprietary, patended, copyrighted, or otherwise belonging to AT&T, Arris, Motorola, or other companies related to the AT&T Residential Gateway.
 
 # About
 
 This repository includes notes on using your own OPNsense hardware with AT&T Fiber.
-This method utilizes [`netgraph`](https://www.freebsd.org/cgi/man.cgi?netgraph(4)), a graph based kernel networking subsystem of FreeBSD, and `wpa_supplicant`.
-This "supplicant" method eliminates the need for the AT&T Residential Gateway entirely.
+The method described here uses `wpa_supplicant` to authenticate via 802.1x (EAP-TLS), and either [`netgraph`](https://www.freebsd.org/cgi/man.cgi?netgraph(4)) or a [smart/managed switch](README.md#Switches) to deal with VLAN ID 0.
+This method eliminates the need for the AT&T Residential Gateway entirely. The ONT is still used, and plugs directly into OPNsense.
 
 # Compatibility
 
+This repository aims to support the latest stable version of OPNsense. Compatibility with older versions or other operating systems (pfSense, Linux, etc.) is not guaranteed.
+That said, netgraph is the only OS-specific part of the stack. Using a smart/managed switch instead of netgraph, eBPF (Linux), or another solution should work on other operating systems.
+
 ## OPNsense
 
-Tested working on:
-- [x] OPNsense 23.1.5_4-amd64
-  - FreeBSD 13.1-RELEASE-p7
-  - OpenSSL 1.1.1t 7 Feb 2023
-  - wpa_supplicant 2.10_6
-  - Intel(R) PRO/1000 ET 82576 (igb)
-    - EEPROM V1.5-1 eTrack 0x0001616a
-  
-- [x] OPNsense 23.1.1_2-amd64
-
-_Should_ work on:
-- OPNsense 23.1_6
-- OPNsense 22.7.11_1
-- OPNsense 22.7.11
-- OPNsense 22.7.3_2
-- OPNsense 22.7.2
-- OPNsense 22.7.1
-- OPNsense 22.7_4
-- OPNsense 22.1.10_4	
-- OPNsense 22.1.8_1
-- OPNsense 21.7.1
-
-## pfSense
-
-Tested on OPNsense but probably works on pfSense as well.
+The latest OPNsense release this script was tested on is **OPNsense 23.1.5_4-amd64**.
 
 ## GPON & XGS-PON
 
 This type of bypass does not work in XGS-PON areas.
+
+## Switches
+
+| Manufacturer | Model          | Working | HW Version | SW Version                     | Notes | Updated                    |
+| ------------ | -------------- | ------- | ---------- | ------------------------------ | ----- | -------------------------- |
+| D-Link       | DGS-1100-08    | ✅      | B1         | 1.00.b031                      |       | @gpz1100 04/08/2023        |
+| D-Link       | DGS-1100-05v2  | ✅      | A1         | 1.00.003                       |       | @topsecretsauce 04/12/2023 |
+| TP-Link      | TL-SG108E      | ✅      | 5.0        | 1.0.0 Build 20191021 Rel.53360 |       | @owenthewizard 04/13/2023  |
+| D-Link       | DGS-1210-10    | ✅      | F1         | 6.31.002                       |       | @gpz1100 04/14/2023        |
+| Netgear      | GS308T         | ❌      |            |                                |       | @gpz1100 04/08/2023        |
+| Cisco        | Catalyst 3750G | ❔      |            |                                |       |                            |
+| Mikrotik     | RB4011         | ❔      |            |                                |       |                            |
+| Ubiquiti     | USW-Flex-Mini  | ❌      |            |                                |       | @bigjohns97 04/14/2023     |
 
 # Background
 
 While many AT&T Residential Gateways offer something called _IP Passthrough_, it does not provide the same advantages of a true bridge mode.
 For example, the NAT table is still managed by the gateway, which is limited to a measly 8192 sessions (although it becomes unstable at even 60% capacity)<sup>[citation needed]</sup>.
 
-The supplicant method will allow you to fully utilize your own router and fully bypass your Residential Gateway.
+The method described here will allow you to fully utilize your own router and fully bypass your Residential Gateway.
 It survives reboots, re-authentications, IPv6, and new DHCP leases.
 
 ## How it Works
@@ -65,12 +57,12 @@ At a high level, the following process happens when the gateway boots up:
 
 1. All traffic on the ONT is protected with [802.1/X](https://en.wikipedia.org/wiki/IEEE_802.1X).
    So in order to talk to anything, the Router Gateway must first perform the [authentication procedure](https://en.wikipedia.org/wiki/IEEE_802.1X#Typical_authentication_progression).
-This process uses a unique certificate that is hardcoded on your Residential Gateway.
+   This process uses a unique certificate that is hardcoded on your Residential Gateway.
 2. Once the authentication completes, you'll be able to properly "talk" to the outside.
-However, all of your traffic will need to be tagged with VLAN ID 0 (a.k.a. VLAN Priority Tagging<sup>[[1]](https://wikipedia.org/wiki/IEEE_802.1Q#Frame_format)[[2]](https://www.cisco.com/c/en/us/td/docs/switches/connectedgrid/cg-switch-sw-master/software/configuration/guide/vlan0/b_vlan_0.html)</sup>) before the IP gateway will respond.
+   However, all of your traffic will need to be tagged with VLAN ID 0 (a.k.a. VLAN Priority Tagging<sup>[[1]](https://wikipedia.org/wiki/IEEE_802.1Q#Frame_format)[[2]](https://www.cisco.com/c/en/us/td/docs/switches/connectedgrid/cg-switch-sw-master/software/configuration/guide/vlan0/b_vlan_0.html)</sup>) before the IP gateway will respond.
 3. Once traffic is tagged with VLAN ID 0, your Residential Gateway needs to request a public IPv4 address via DHCP.
    The MAC address in the DHCP request needs to match that of the MAC address that's assigned to your AT&T account<sup>[citation needed]</sup>.
-Other than that, there's nothing special about the DCHPv4 handshake.
+   Other than that, there's nothing special about the DCHPv4 handshake.
 4. After the DHCP lease is issued, the WAN setup is complete.
    Your LAN traffic is then NAT'd and routed to the outside.
 
@@ -206,10 +198,9 @@ wpa_cli status
 ## `tcpdump`
 
 Use tcpdump to watch authentication, VLAN and DHCP traffic.
-```
+```shell
 tcpdump -ei $ONT_IF
 ```
-
 
 Verify you are seeing 802.1Q (tagged as vlan0) traffic on your `$ONT_IF ` interface and untagged traffic on `ngeth0`.
 
@@ -349,8 +340,6 @@ See [U-VERSE_TV.md](U-VERSE_TV.md)
 - It's unclear wether promiscous mode is actually needed.
   Please submit feedback!
 - An option to log to `/var/log/opnatt.log` in addition to syslog would be preferred.
-- XGS-PON rollout by AT&T will likely change things.
-  It's been reported that this bypass no longer works in XGS-PON areas.
 - Occasional disconnects.
   Unclear why this happens, but copying the script to `/usr/local/etc/rc.syshook.d/monitor` will re-connect automatically.
 
