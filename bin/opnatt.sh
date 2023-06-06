@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# OPNsense has bash, so let's use it
+# OPNsense **DOESN'T** have bash, so make sure you install it!
 
 source /conf/opnatt/bin/opnatt.conf
 source /conf/opnatt/bin/opnatt-functions.sh
@@ -32,7 +32,7 @@ log "creating vlan node and ngeth0 interface..."
 /usr/sbin/ngctl msg vlan0: 'addfilter { vlan=0 hook="vlan0" }'
 /usr/sbin/ngctl msg ngeth0: set "$RG_ETHER"
 
-log "enabling promisc for $ONT_IF..."
+log "enabling promisc for $ONT_IF and spoofing MAC..."
 
 /sbin/ifconfig "$ONT_IF" ether "$RG_ETHER" -vlanhwtag -vlanhwfilter
 /sbin/ifconfig "$ONT_IF" up promisc
